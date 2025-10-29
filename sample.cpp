@@ -4,12 +4,17 @@
 #include <math.h>
 #include <ctype.h>
 #include <time.h>
+#include <vector>
+#include <cmath>
+#include "keytime.h"
 
 
 #ifndef F_PI
 #define F_PI		((float)(M_PI))
 #define F_2_PI		((float)(2.f*F_PI))
 #define F_PI_2		((float)(F_PI/2.f))
+#define MSEC        1000 // 10000 milliseconds = 10 seconds
+
 #endif
 
 
@@ -47,11 +52,11 @@
 //		6. The transformations to be reset
 //		7. The program to quit
 //
-//	Author:			Joe Graphics
+//	Author:			Jinhui Zhen
 
 // title of these windows:
 
-const char *WINDOWTITLE = "OpenGL / GLUT Sample -- Joe Graphics";
+const char *WINDOWTITLE = "OpenGL / GLUT Sample -- Jinhui Zhen";
 const char *GLUITITLE   = "User Interface Window";
 
 // what the glui package defines as true and false:
@@ -199,6 +204,15 @@ int		ShadowsOn;				// != 0 means to turn shadows on
 float	Time;					// used for animation, this has a value between 0. and 1.
 int		Xmouse, Ymouse;			// mouse values
 float	Xrot, Yrot;				// rotation angles in degrees
+bool	Frozen;
+
+// Global variables for display lists
+GLuint DL1, DL2;
+
+// 9 Keytimes for animation
+Keytimes EyeX, EyeY, EyeZ;
+Keytimes Obj1_Tx, Obj1_RotY, Obj1_Scale;
+Keytimes Obj2_Tz, Obj2_RotX, Obj2_Scale;
 
 
 // function prototypes:
@@ -306,12 +320,12 @@ TimeOfDaySeed( )
 
 //#include "setmaterial.cpp"
 //#include "setlight.cpp"
-//#include "osusphere.cpp"
+#include "osusphere.cpp"
 //#include "osucube.cpp"
 //#include "osucylindercone.cpp"
 //#include "osutorus.cpp"
 //#include "bmptotexture.cpp"
-//#include "loadobjmtlfiles.cpp"
+//#include "loadobjmtlfiles.h"
 //#include "keytime.cpp"
 //#include "glslprogram.cpp"
 //#include "vertexbufferobject.cpp"
@@ -366,17 +380,7 @@ main( int argc, char *argv[ ] )
 // do not call Display( ) from here -- let glutPostRedisplay( ) do it
 
 void
-Animate( )
-{
-	// put animation stuff in here -- change some global variables for Display( ) to find:
-
-	int ms = glutGet(GLUT_ELAPSED_TIME);
-	ms %= MS_PER_CYCLE;							// makes the value of ms between 0 and MS_PER_CYCLE-1
-	Time = (float)ms / (float)MS_PER_CYCLE;		// makes the value of Time between 0. and slightly less than 1.
-
-	// for example, if you wanted to spin an object in Display( ), you might call: glRotatef( 360.f*Time,   0., 1., 0. );
-
-	// force a call to Display( ) next time it is convenient:
+Animate( ) {
 
 	glutSetWindow( MainWindow );
 	glutPostRedisplay( );
@@ -405,9 +409,8 @@ Display( )
 #endif
 
 
-	// specify shading to be flat:
-
-	glShadeModel( GL_FLAT );
+	// specify shading to be smooth for better lighting:
+	glShadeModel( GL_SMOOTH );
 
 	// set the viewport to be a square centered in the window:
 
@@ -435,52 +438,46 @@ Display( )
 	glMatrixMode( GL_MODELVIEW );
 	glLoadIdentity( );
 
-	// set the eye position, look-at position, and up-vector:
+	// Calculate current animation time
+	int msec = glutGet(GLUT_ELAPSED_TIME) % MSEC;
+	float nowTime = (float)msec / 1000.f;
 
-	gluLookAt( 0.f, 0.f, 3.f,     0.f, 0.f, 0.f,     0.f, 1.f, 0.f );
+	// set the eye position, look-at position, and up-vector:
+	// Animate using Keytimes
+	float eyex = EyeX.GetValue(nowTime);
+	float eyey = EyeY.GetValue(nowTime);
+	float eyez = EyeZ.GetValue(nowTime);
+	
+	gluLookAt(eyex, eyey, eyez,   // animated eye position
+	          0., 0., 0.,          // center (look at)
+	          0., 1., 0.);         // up vector
 
 	// rotate the scene:
-
 	glRotatef( (GLfloat)Yrot, 0.f, 1.f, 0.f );
 	glRotatef( (GLfloat)Xrot, 1.f, 0.f, 0.f );
 
 	// uniformly scale the scene:
-
 	if( Scale < MINSCALE )
 		Scale = MINSCALE;
 	glScalef( (GLfloat)Scale, (GLfloat)Scale, (GLfloat)Scale );
 
-	// set the fog parameters:
-
-	if( DepthCueOn != 0 )
-	{
-		glFogi( GL_FOG_MODE, FOGMODE );
-		glFogfv( GL_FOG_COLOR, FOGCOLOR );
-		glFogf( GL_FOG_DENSITY, FOGDENSITY );
-		glFogf( GL_FOG_START, FOGSTART );
-		glFogf( GL_FOG_END, FOGEND );
-		glEnable( GL_FOG );
-	}
-	else
-	{
-		glDisable( GL_FOG );
-	}
+	// Set up lighting position
+	GLfloat lightPosition[] = { 5.0, 5.0, 5.0, 1.0 };
+	glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
 
 	// possibly draw the axes:
-
 	if( AxesOn != 0 )
 	{
+		glDisable(GL_LIGHTING);
 		glColor3fv( &Colors[NowColor][0] );
 		glCallList( AxesList );
+		glEnable(GL_LIGHTING);
 	}
 
 	// since we are using glScalef( ), be sure the normals get unitized:
-
 	glEnable( GL_NORMALIZE );
 
-
 	// draw the box object by calling up its display list:
-
 	glCallList( BoxList );
 
 #ifdef DEMO_Z_FIGHTING
@@ -493,43 +490,49 @@ Display( )
 	}
 #endif
 
+	// OBJECT 1: Sphere with animated translation, rotation, and scale
+	GLfloat mat1_ambient[] = { 0.2, 0.05, 0.05, 1.0 };
+	GLfloat mat1_diffuse[] = { 0.8, 0.2, 0.2, 1.0 };
+	GLfloat mat1_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat mat1_shininess[] = { 50.0 };
+	
+	glMaterialfv(GL_FRONT, GL_AMBIENT, mat1_ambient);
+	glMaterialfv(GL_FRONT, GL_DIFFUSE, mat1_diffuse);
+	glMaterialfv(GL_FRONT, GL_SPECULAR, mat1_specular);
+	glMaterialfv(GL_FRONT, GL_SHININESS, mat1_shininess);
+	
+	glPushMatrix();
+		glTranslatef(Obj1_Tx.GetValue(nowTime), 0.f, 0.f);
+		glRotatef(Obj1_RotY.GetValue(nowTime), 0.f, 1.f, 0.f);
+		float s1 = Obj1_Scale.GetValue(nowTime);
+		glScalef(s1, s1, s1);
+		glCallList(DL1);
+	glPopMatrix();
 
-	// draw some gratuitous text that just rotates on top of the scene:
-	// i commented out the actual text-drawing calls -- put them back in if you have a use for them
-	// a good use for thefirst one might be to have your name on the screen
-	// a good use for the second one might be to have vertex numbers on the screen alongside each vertex
-
-	glDisable( GL_DEPTH_TEST );
-	glColor3f( 0.f, 1.f, 1.f );
-	//DoRasterString( 0.f, 1.f, 0.f, (char *)"Text That Moves" );
-
-
-	// draw some gratuitous text that is fixed on the screen:
-	//
-	// the projection matrix is reset to define a scene whose
-	// world coordinate system goes from 0-100 in each axis
-	//
-	// this is called "percent units", and is just a convenience
-	//
-	// the modelview matrix is reset to identity as we don't
-	// want to transform these coordinates
-
-	glDisable( GL_DEPTH_TEST );
-	glMatrixMode( GL_PROJECTION );
-	glLoadIdentity( );
-	gluOrtho2D( 0.f, 100.f,     0.f, 100.f );
-	glMatrixMode( GL_MODELVIEW );
-	glLoadIdentity( );
-	glColor3f( 1.f, 1.f, 1.f );
-	//DoRasterString( 5.f, 5.f, 0.f, (char *)"Text That Doesn't" );
+	// OBJECT 2: Teapot with animated translation, rotation, and scale
+	GLfloat mat2_ambient[] = { 0.05, 0.05, 0.2, 1.0 };
+	GLfloat mat2_diffuse[] = { 0.2, 0.2, 0.8, 1.0 };
+	GLfloat mat2_specular[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat mat2_shininess[] = { 100.0 };
+	
+	glMaterialfv(GL_FRONT, GL_AMBIENT, mat2_ambient);
+	glMaterialfv(GL_FRONT, GL_DIFFUSE, mat2_diffuse);
+	glMaterialfv(GL_FRONT, GL_SPECULAR, mat2_specular);
+	glMaterialfv(GL_FRONT, GL_SHININESS, mat2_shininess);
+	
+	glPushMatrix();
+		glTranslatef(0.f, 0.f, Obj2_Tz.GetValue(nowTime));
+		glRotatef(Obj2_RotX.GetValue(nowTime), 1.f, 0.f, 0.f);
+		float s2 = Obj2_Scale.GetValue(nowTime);
+		glScalef(s2, s2, s2);
+		glCallList(DL2);
+	glPopMatrix();
 
 	// swap the double-buffered framebuffers:
-
 	glutSwapBuffers( );
 
 	// be sure the graphics buffer has been sent:
 	// note: be sure to use glFlush( ) here, not glFinish( ) !
-
 	glFlush( );
 }
 
@@ -666,7 +669,6 @@ DoStrokeString( float x, float y, float z, float ht, char *s )
 	glPopMatrix( );
 }
 
-
 // return the number of seconds since the start of the program:
 
 float
@@ -712,26 +714,6 @@ InitGraphics( )
 	glClearColor( BACKCOLOR[0], BACKCOLOR[1], BACKCOLOR[2], BACKCOLOR[3] );
 
 	// setup the callback functions:
-	// DisplayFunc -- redraw the window
-	// ReshapeFunc -- handle the user resizing the window
-	// KeyboardFunc -- handle a keyboard input
-	// MouseFunc -- handle the mouse button going down or up
-	// MotionFunc -- handle the mouse moving with a button down
-	// PassiveMotionFunc -- handle the mouse moving with a button up
-	// VisibilityFunc -- handle a change in window visibility
-	// EntryFunc	-- handle the cursor entering or leaving the window
-	// SpecialFunc -- handle special keys on the keyboard
-	// SpaceballMotionFunc -- handle spaceball translation
-	// SpaceballRotateFunc -- handle spaceball rotation
-	// SpaceballButtonFunc -- handle spaceball button hits
-	// ButtonBoxFunc -- handle button box hits
-	// DialsFunc -- handle dial rotations
-	// TabletMotionFunc -- handle digitizing tablet motion
-	// TabletButtonFunc -- handle digitizing tablet button hits
-	// MenuStateFunc -- declare when a pop-up menu is in use
-	// TimerFunc -- trigger something to happen a certain time from now
-	// IdleFunc -- what to do when nothing else is going on
-
 	glutSetWindow( MainWindow );
 	glutDisplayFunc( Display );
 	glutReshapeFunc( Resize );
@@ -739,7 +721,6 @@ InitGraphics( )
 	glutMouseFunc( MouseButton );
 	glutMotionFunc( MouseMotion );
 	glutPassiveMotionFunc(MouseMotion);
-	//glutPassiveMotionFunc( NULL );
 	glutVisibilityFunc( Visibility );
 	glutEntryFunc( NULL );
 	glutSpecialFunc( NULL );
@@ -752,12 +733,6 @@ InitGraphics( )
 	glutTabletButtonFunc( NULL );
 	glutMenuStateFunc( NULL );
 	glutTimerFunc( -1, NULL, 0 );
-
-	// setup glut to call Animate( ) every time it has
-	// 	nothing it needs to respond to (which is most of the time)
-	// we don't need to do this for this program, and really should set the argument to NULL
-	// but, this sets us up nicely for doing animation
-
 	glutIdleFunc( Animate );
 
 	// init the glew package (a window must be open to do this):
@@ -773,9 +748,100 @@ InitGraphics( )
 	fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif
 
-	// all other setups go here, such as GLSLProgram and KeyTime setups:
+	// Initialize Keytime animations HERE (moved from InitLists to avoid duplication)
+	// 3 Camera animations
+	EyeX.Init();
+	EyeX.AddTimeValue(0.0, 0.0);
+	EyeX.AddTimeValue(2.0, 3.0);
+	EyeX.AddTimeValue(4.0, 5.0);
+	EyeX.AddTimeValue(6.0, 3.0);
+	EyeX.AddTimeValue(8.0, 0.0);
+	EyeX.AddTimeValue(10.0, 0.0);
 
+	EyeY.Init();
+	EyeY.AddTimeValue(0.0, 3.0);
+	EyeY.AddTimeValue(2.0, 4.0);
+	EyeY.AddTimeValue(4.0, 2.0);
+	EyeY.AddTimeValue(6.0, 5.0);
+	EyeY.AddTimeValue(8.0, 3.5);
+	EyeY.AddTimeValue(10.0, 3.0);
+
+	EyeZ.Init();
+	EyeZ.AddTimeValue(0.0, 10.0);
+	EyeZ.AddTimeValue(2.0, 8.0);
+	EyeZ.AddTimeValue(4.0, 6.0);
+	EyeZ.AddTimeValue(6.0, 8.0);
+	EyeZ.AddTimeValue(8.0, 9.0);
+	EyeZ.AddTimeValue(10.0, 10.0);
+
+	// 3 Object 1 animations (translate X, rotate Y, scale)
+	Obj1_Tx.Init();
+	Obj1_Tx.AddTimeValue(0.0, -2.0);
+	Obj1_Tx.AddTimeValue(2.0, -1.0);
+	Obj1_Tx.AddTimeValue(4.0, 1.0);
+	Obj1_Tx.AddTimeValue(6.0, 2.0);
+	Obj1_Tx.AddTimeValue(8.0, 0.0);
+	Obj1_Tx.AddTimeValue(10.0, -2.0);
+
+	Obj1_RotY.Init();
+	Obj1_RotY.AddTimeValue(0.0, 0.0);
+	Obj1_RotY.AddTimeValue(2.0, 90.0);
+	Obj1_RotY.AddTimeValue(4.0, 180.0);
+	Obj1_RotY.AddTimeValue(6.0, 270.0);
+	Obj1_RotY.AddTimeValue(8.0, 360.0);
+	Obj1_RotY.AddTimeValue(10.0, 360.0);
+
+	Obj1_Scale.Init();
+	Obj1_Scale.AddTimeValue(0.0, 0.5);
+	Obj1_Scale.AddTimeValue(2.0, 1.0);
+	Obj1_Scale.AddTimeValue(4.0, 1.5);
+	Obj1_Scale.AddTimeValue(6.0, 1.2);
+	Obj1_Scale.AddTimeValue(8.0, 0.8);
+	Obj1_Scale.AddTimeValue(10.0, 0.5);
+
+	// 3 Object 2 animations (translate Z, rotate X, scale)
+	Obj2_Tz.Init();
+	Obj2_Tz.AddTimeValue(0.0, 2.0);
+	Obj2_Tz.AddTimeValue(2.0, 0.0);
+	Obj2_Tz.AddTimeValue(4.0, -2.0);
+	Obj2_Tz.AddTimeValue(6.0, -1.0);
+	Obj2_Tz.AddTimeValue(8.0, 1.0);
+	Obj2_Tz.AddTimeValue(10.0, 2.0);
+
+	Obj2_RotX.Init();
+	Obj2_RotX.AddTimeValue(0.0, 0.0);
+	Obj2_RotX.AddTimeValue(2.0, 120.0);
+	Obj2_RotX.AddTimeValue(4.0, 240.0);
+	Obj2_RotX.AddTimeValue(6.0, 360.0);
+	Obj2_RotX.AddTimeValue(8.0, 480.0);
+	Obj2_RotX.AddTimeValue(10.0, 720.0);
+
+	Obj2_Scale.Init();
+	Obj2_Scale.AddTimeValue(0.0, 0.8);
+	Obj2_Scale.AddTimeValue(2.0, 1.2);
+	Obj2_Scale.AddTimeValue(4.0, 0.6);
+	Obj2_Scale.AddTimeValue(6.0, 1.4);
+	Obj2_Scale.AddTimeValue(8.0, 1.0);
+	Obj2_Scale.AddTimeValue(10.0, 0.8);
+
+	// Lighting setup
+	glEnable(GL_LIGHTING);
+	glEnable(GL_LIGHT0);
+	
+	GLfloat ambient[] = { 0.2, 0.2, 0.2, 1.0 };
+	GLfloat diffuse[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat specular[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat position[] = { 5.0, 5.0, 5.0, 1.0 };
+	
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specular);
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
+	
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_NORMALIZE);
 }
+
 
 
 // initialize the display lists that will not change:
@@ -783,87 +849,28 @@ InitGraphics( )
 //  memory so that they can be played back efficiently at a later time
 //  with a call to glCallList( )
 
-void
-InitLists( )
+void InitLists()
 {
-	if (DebugOn != 0)
-		fprintf(stderr, "Starting InitLists.\n");
+    // Only display list creation - NO keytime initialization here
+    AxesList = glGenLists(1);
+    glNewList(AxesList, GL_COMPILE);
+        Axes(1.5);
+    glEndList();
 
-	float dx = BOXSIZE / 2.f;
-	float dy = BOXSIZE / 2.f;
-	float dz = BOXSIZE / 2.f;
-	glutSetWindow( MainWindow );
+    BoxList = glGenLists(1);
+    glNewList(BoxList, GL_COMPILE);
+        // Empty
+    glEndList();
 
-	// create the object:
+    DL1 = glGenLists(1);
+    glNewList(DL1, GL_COMPILE);
+        OsuSphere(1.0, 32, 32);
+    glEndList();
 
-	BoxList = glGenLists( 1 );
-	glNewList( BoxList, GL_COMPILE );
-
-		glBegin( GL_QUADS );
-
-			glColor3f( 1., 0., 0. );
-
-				glNormal3f( 1., 0., 0. );
-					glVertex3f(  dx, -dy,  dz );
-					glVertex3f(  dx, -dy, -dz );
-					glVertex3f(  dx,  dy, -dz );
-					glVertex3f(  dx,  dy,  dz );
-
-				glNormal3f(-1., 0., 0.);
-					glVertex3f( -dx, -dy,  dz);
-					glVertex3f( -dx,  dy,  dz );
-					glVertex3f( -dx,  dy, -dz );
-					glVertex3f( -dx, -dy, -dz );
-
-			glColor3f( 0., 1., 0. );
-
-				glNormal3f(0., 1., 0.);
-					glVertex3f( -dx,  dy,  dz );
-					glVertex3f(  dx,  dy,  dz );
-					glVertex3f(  dx,  dy, -dz );
-					glVertex3f( -dx,  dy, -dz );
-
-				glNormal3f(0., -1., 0.);
-					glVertex3f( -dx, -dy,  dz);
-					glVertex3f( -dx, -dy, -dz );
-					glVertex3f(  dx, -dy, -dz );
-					glVertex3f(  dx, -dy,  dz );
-
-			glColor3f(0., 0., 1.);
-
-				glNormal3f(0., 0., 1.);
-					glVertex3f(-dx, -dy, dz);
-					glVertex3f( dx, -dy, dz);
-					glVertex3f( dx,  dy, dz);
-					glVertex3f(-dx,  dy, dz);
-
-				glNormal3f(0., 0., -1.);
-					glVertex3f(-dx, -dy, -dz);
-					glVertex3f(-dx,  dy, -dz);
-					glVertex3f( dx,  dy, -dz);
-					glVertex3f( dx, -dy, -dz);
-
-		glEnd( );
-#ifdef NOTDEF
-		glColor3f(1., 1., 1.);
-		glBegin(GL_TRIANGLES);
-		glVertex3f(-dx, -dy, dz);
-		glVertex3f(0., -dy, dz + 0.5f);
-		glVertex3f(dx, -dy, dz);
-		glEnd();
-#endif
-
-	glEndList( );
-
-
-	// create the axes:
-
-	AxesList = glGenLists( 1 );
-	glNewList( AxesList, GL_COMPILE );
-		glLineWidth( AXES_WIDTH );
-			Axes( 1.5 );
-		glLineWidth( 1. );
-	glEndList( );
+    DL2 = glGenLists(1);
+    glNewList(DL2, GL_COMPILE);
+        glutSolidTeapot(1.0);
+    glEndList();
 }
 
 
@@ -879,7 +886,7 @@ InitMenus( )
 
 	int numColors = sizeof( Colors ) / ( 3*sizeof(float) );
 	int colormenu = glutCreateMenu( DoColorMenu );
-	for( int i = 0; i < numColors; i++ )
+	for( int i = 0; i < numColors; i++ )	
 	{
 		glutAddMenuEntry( ColorNames[i], i );
 	}
@@ -942,6 +949,14 @@ Keyboard( unsigned char c, int x, int y )
 
 	switch( c )
 	{
+		case 'f':
+		case 'F':
+			Frozen = ! Frozen;	// the exclamation point is the boolean "not" operator
+			if( Frozen )
+				glutIdleFunc( NULL );
+			else
+				glutIdleFunc( Animate );
+			break;
 		case 'o':
 		case 'O':
 			NowProjection = ORTHO;
@@ -1081,6 +1096,7 @@ Reset( )
 	NowColor = YELLOW;
 	NowProjection = PERSP;
 	Xrot = Yrot = 0.;
+	Frozen = false;	
 }
 
 
