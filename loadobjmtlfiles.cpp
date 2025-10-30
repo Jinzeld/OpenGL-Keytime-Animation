@@ -1,5 +1,7 @@
 #include "loadobjmtlfiles.h"
 
+
+
 #define HANDLE_MTL_FILES
 
 FILE* FpMtl;;
@@ -33,8 +35,8 @@ LoadObjMtlFiles( char *name )
         errno_t err = fopen_s( &fp, name, "r" );
     	if( err != 0 )
 #else
-	fp = fopen( str, "r" );
-	if( fp == NULL )
+    fp = fopen( name, "r" );
+    if( fp == NULL )
 #endif
 	{
 		fprintf( stderr, "Cannot open .obj file '%s'\n", name );
