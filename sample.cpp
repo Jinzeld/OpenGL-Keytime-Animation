@@ -6,6 +6,8 @@
 #include <time.h>
 #include <vector>
 #include <cmath>
+
+#include "loadobjmtlfiles.h"
 #include "keytime.h"
 
 
@@ -13,7 +15,6 @@
 #define F_PI		((float)(M_PI))
 #define F_2_PI		((float)(2.f*F_PI))
 #define F_PI_2		((float)(F_PI/2.f))
-#define MSEC        1000 // 10000 milliseconds = 10 seconds
 
 #endif
 
@@ -162,21 +163,20 @@ const GLfloat Colors[ ][3] =
 	{ 1., 0., 1. },		// magenta
 };
 
-// fog parameters:
+//-----------------_Global Variables--------------------
 
-const GLfloat FOGCOLOR[4] = { .0f, .0f, .0f, 1.f };
-const GLenum  FOGMODE     = GL_LINEAR;
-const GLfloat FOGDENSITY  = 0.30f;
-const GLfloat FOGSTART    = 1.5f;
-const GLfloat FOGEND      = 4.f;
+//obj objects
+GLuint SpaceshipObj; 
 
 // for lighting:
 
 const float	WHITE[ ] = { 1.,1.,1.,1. };
 
 // for animation:
+#define MSEC        10000 // 10000 milliseconds = 10 seconds
 
-const int MS_PER_CYCLE = 10000;		// 10000 milliseconds = 10 seconds
+
+
 
 
 // what options should we compile-in?
@@ -320,13 +320,11 @@ TimeOfDaySeed( )
 
 //#include "setmaterial.cpp"
 //#include "setlight.cpp"
-#include "osusphere.cpp"
+//#include "osusphere.cpp"
 //#include "osucube.cpp"
 //#include "osucylindercone.cpp"
 //#include "osutorus.cpp"
 //#include "bmptotexture.cpp"
-//#include "loadobjmtlfiles.h"
-//#include "keytime.cpp"
 //#include "glslprogram.cpp"
 //#include "vertexbufferobject.cpp"
 
@@ -446,7 +444,7 @@ Display( )
 	// Animate using Keytimes
 	float eyex = EyeX.GetValue(nowTime);
 	float eyey = EyeY.GetValue(nowTime);
-	float eyez = EyeZ.GetValue(nowTime);
+	float eyez = EyeZ.GetValue(nowTime) + 12.0f;
 	
 	gluLookAt(eyex, eyey, eyez,   // animated eye position
 	          0., 0., 0.,          // center (look at)
@@ -473,69 +471,40 @@ Display( )
 		glCallList( AxesList );
 		glEnable(GL_LIGHTING);
 	}
+	// === Spaceship Animations with Keytimes ===
+	float t = nowTime;
 
-	// since we are using glScalef( ), be sure the normals get unitized:
-	glEnable( GL_NORMALIZE );
+	// --- Spaceship 1 Animation ---
+	float ship1Tx    = Obj1_Tx.GetValue(t);     // Move along X axis
+	float ship1RotY  = Obj1_RotY.GetValue(t);   // Rotate around Y axis
+	float ship1Scale = Obj1_Scale.GetValue(t);  // Scale animation
 
-	// draw the box object by calling up its display list:
-	glCallList( BoxList );
-
-#ifdef DEMO_Z_FIGHTING
-	if( DepthFightingOn != 0 )
-	{
-		glPushMatrix( );
-			glRotatef( 90.f,   0.f, 1.f, 0.f );
-			glCallList( BoxList );
-		glPopMatrix( );
-	}
-#endif
-
-	// OBJECT 1: Sphere with animated translation, rotation, and scale
-	GLfloat mat1_ambient[] = { 0.2, 0.05, 0.05, 1.0 };
-	GLfloat mat1_diffuse[] = { 0.8, 0.2, 0.2, 1.0 };
-	GLfloat mat1_specular[] = { 1.0, 1.0, 1.0, 1.0 };
-	GLfloat mat1_shininess[] = { 50.0 };
-	
-	glMaterialfv(GL_FRONT, GL_AMBIENT, mat1_ambient);
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, mat1_diffuse);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, mat1_specular);
-	glMaterialfv(GL_FRONT, GL_SHININESS, mat1_shininess);
-	
 	glPushMatrix();
-		glTranslatef(Obj1_Tx.GetValue(nowTime), 0.f, 0.f);
-		glRotatef(Obj1_RotY.GetValue(nowTime), 0.f, 1.f, 0.f);
-		float s1 = Obj1_Scale.GetValue(nowTime);
-		glScalef(s1, s1, s1);
-		glCallList(DL1);
+		glTranslatef(ship1Tx, 0.0f, 2.0f);          // Move left and right
+		glRotatef(ship1RotY, 0.f, 1.f, 0.f);        // Spin around Y
+		glScalef(ship1Scale * 0.01f, ship1Scale * 0.01f, ship1Scale * 0.01f);
+		glCallList(SpaceshipObj);
 	glPopMatrix();
 
-	// OBJECT 2: Teapot with animated translation, rotation, and scale
-	GLfloat mat2_ambient[] = { 0.05, 0.05, 0.2, 1.0 };
-	GLfloat mat2_diffuse[] = { 0.2, 0.2, 0.8, 1.0 };
-	GLfloat mat2_specular[] = { 1.0, 1.0, 1.0, 1.0 };
-	GLfloat mat2_shininess[] = { 100.0 };
-	
-	glMaterialfv(GL_FRONT, GL_AMBIENT, mat2_ambient);
-	glMaterialfv(GL_FRONT, GL_DIFFUSE, mat2_diffuse);
-	glMaterialfv(GL_FRONT, GL_SPECULAR, mat2_specular);
-	glMaterialfv(GL_FRONT, GL_SHININESS, mat2_shininess);
-	
+	// --- Spaceship 2 Animation ---
+	float ship2Tz    = Obj2_Tz.GetValue(t);     // Move along Z axis
+	float ship2RotX  = Obj2_RotX.GetValue(t);   // Rotate around X axis
+	float ship2Scale = Obj2_Scale.GetValue(t);  // Scale animation
+
 	glPushMatrix();
-		glTranslatef(0.f, 0.f, Obj2_Tz.GetValue(nowTime));
-		glRotatef(Obj2_RotX.GetValue(nowTime), 1.f, 0.f, 0.f);
-		float s2 = Obj2_Scale.GetValue(nowTime);
-		glScalef(s2, s2, s2);
-		glCallList(DL2);
+		glTranslatef(2.0f, 0.0f, ship2Tz - 2.0f);          // Move forward/backward
+		glRotatef(ship2RotX, 1.f, 0.f, 0.f);        // Spin around X
+		glScalef(ship2Scale * 0.01f, ship2Scale * 0.01f, ship2Scale * 0.01f);
+		glCallList(SpaceshipObj);
 	glPopMatrix();
 
-	// swap the double-buffered framebuffers:
-	glutSwapBuffers( );
+		// swap the double-buffered framebuffers:
+		glutSwapBuffers( );
 
-	// be sure the graphics buffer has been sent:
-	// note: be sure to use glFlush( ) here, not glFinish( ) !
-	glFlush( );
+		// be sure the graphics buffer has been sent:
+		// note: be sure to use glFlush( ) here, not glFinish( ) !
+		glFlush( );
 }
-
 
 void
 DoAxesMenu( int id )
@@ -748,81 +717,73 @@ InitGraphics( )
 	fprintf( stderr, "Status: Using GLEW %s\n", glewGetString(GLEW_VERSION));
 #endif
 
-	// Initialize Keytime animations HERE (moved from InitLists to avoid duplication)
 	// 3 Camera animations
 	EyeX.Init();
-	EyeX.AddTimeValue(0.0, 0.0);
-	EyeX.AddTimeValue(2.0, 3.0);
-	EyeX.AddTimeValue(4.0, 5.0);
-	EyeX.AddTimeValue(6.0, 3.0);
-	EyeX.AddTimeValue(8.0, 0.0);
+	EyeX.AddTimeValue(0.0,  0.0);
+	EyeX.AddTimeValue(2.0, 10.0);
+	EyeX.AddTimeValue(4.0, -10.0);
+	EyeX.AddTimeValue(6.0, 15.0);
+	EyeX.AddTimeValue(8.0, -12.0);
 	EyeX.AddTimeValue(10.0, 0.0);
 
 	EyeY.Init();
-	EyeY.AddTimeValue(0.0, 3.0);
-	EyeY.AddTimeValue(2.0, 4.0);
-	EyeY.AddTimeValue(4.0, 2.0);
-	EyeY.AddTimeValue(6.0, 5.0);
-	EyeY.AddTimeValue(8.0, 3.5);
-	EyeY.AddTimeValue(10.0, 3.0);
+	EyeY.AddTimeValue(0.0,  5.0);
+	EyeY.AddTimeValue(2.0, 15.0);
+	EyeY.AddTimeValue(4.0,  2.0);
+	EyeY.AddTimeValue(6.0, 20.0);
+	EyeY.AddTimeValue(8.0,  3.0);
+	EyeY.AddTimeValue(10.0,  5.0);
 
 	EyeZ.Init();
-	EyeZ.AddTimeValue(0.0, 10.0);
-	EyeZ.AddTimeValue(2.0, 8.0);
-	EyeZ.AddTimeValue(4.0, 6.0);
-	EyeZ.AddTimeValue(6.0, 8.0);
-	EyeZ.AddTimeValue(8.0, 9.0);
-	EyeZ.AddTimeValue(10.0, 10.0);
+	EyeZ.AddTimeValue(0.0, 20.0);
+	EyeZ.AddTimeValue(2.0, -10.0);
+	EyeZ.AddTimeValue(4.0, -15.0);
+	EyeZ.AddTimeValue(6.0, 10.0);
+	EyeZ.AddTimeValue(8.0, -5.0);
+	EyeZ.AddTimeValue(10.0, 20.0);
 
-	// 3 Object 1 animations (translate X, rotate Y, scale)
+
+	// Object 1 crazy motion
 	Obj1_Tx.Init();
-	Obj1_Tx.AddTimeValue(0.0, -2.0);
-	Obj1_Tx.AddTimeValue(2.0, -1.0);
-	Obj1_Tx.AddTimeValue(4.0, 1.0);
-	Obj1_Tx.AddTimeValue(6.0, 2.0);
-	Obj1_Tx.AddTimeValue(8.0, 0.0);
-	Obj1_Tx.AddTimeValue(10.0, -2.0);
+	Obj1_Tx.AddTimeValue(0.0, -8.0);
+	Obj1_Tx.AddTimeValue(2.0, -4.0);
+	Obj1_Tx.AddTimeValue(4.0, 0.0);
+	Obj1_Tx.AddTimeValue(6.0, 4.0);
+	Obj1_Tx.AddTimeValue(8.0, 8.0);
+	Obj1_Tx.AddTimeValue(10.0, 0.0);
 
 	Obj1_RotY.Init();
 	Obj1_RotY.AddTimeValue(0.0, 0.0);
-	Obj1_RotY.AddTimeValue(2.0, 90.0);
-	Obj1_RotY.AddTimeValue(4.0, 180.0);
-	Obj1_RotY.AddTimeValue(6.0, 270.0);
-	Obj1_RotY.AddTimeValue(8.0, 360.0);
-	Obj1_RotY.AddTimeValue(10.0, 360.0);
+	Obj1_RotY.AddTimeValue(2.0, 180.0);
+	Obj1_RotY.AddTimeValue(4.0, 720.0);
+	Obj1_RotY.AddTimeValue(6.0, 1080.0);
+	Obj1_RotY.AddTimeValue(8.0, 1440.0);
+	Obj1_RotY.AddTimeValue(10.0, 1800.0);
 
 	Obj1_Scale.Init();
-	Obj1_Scale.AddTimeValue(0.0, 0.5);
-	Obj1_Scale.AddTimeValue(2.0, 1.0);
-	Obj1_Scale.AddTimeValue(4.0, 1.5);
-	Obj1_Scale.AddTimeValue(6.0, 1.2);
-	Obj1_Scale.AddTimeValue(8.0, 0.8);
-	Obj1_Scale.AddTimeValue(10.0, 0.5);
+	Obj1_Scale.AddTimeValue(0.0, 0.3);
+	Obj1_Scale.AddTimeValue(2.0, 1.5);
+	Obj1_Scale.AddTimeValue(4.0, 2.5);
+	Obj1_Scale.AddTimeValue(6.0, 0.8);
+	Obj1_Scale.AddTimeValue(8.0, 3.0);
+	Obj1_Scale.AddTimeValue(10.0, 0.3);
 
-	// 3 Object 2 animations (translate Z, rotate X, scale)
+	// Object 2 animations (translate Z, rotate X, scale)
 	Obj2_Tz.Init();
-	Obj2_Tz.AddTimeValue(0.0, 2.0);
-	Obj2_Tz.AddTimeValue(2.0, 0.0);
-	Obj2_Tz.AddTimeValue(4.0, -2.0);
-	Obj2_Tz.AddTimeValue(6.0, -1.0);
-	Obj2_Tz.AddTimeValue(8.0, 1.0);
-	Obj2_Tz.AddTimeValue(10.0, 2.0);
+	Obj2_Tz.AddTimeValue(0.0, 10.0);
+	Obj2_Tz.AddTimeValue(2.0, 5.0);
+	Obj2_Tz.AddTimeValue(4.0, -10.0);
+	Obj2_Tz.AddTimeValue(6.0, -5.0);
+	Obj2_Tz.AddTimeValue(8.0, 0.0);
+	Obj2_Tz.AddTimeValue(10.0, 10.0);
 
 	Obj2_RotX.Init();
 	Obj2_RotX.AddTimeValue(0.0, 0.0);
-	Obj2_RotX.AddTimeValue(2.0, 120.0);
-	Obj2_RotX.AddTimeValue(4.0, 240.0);
-	Obj2_RotX.AddTimeValue(6.0, 360.0);
-	Obj2_RotX.AddTimeValue(8.0, 480.0);
-	Obj2_RotX.AddTimeValue(10.0, 720.0);
+	Obj2_RotX.AddTimeValue(10.0, 1080.0);
 
 	Obj2_Scale.Init();
-	Obj2_Scale.AddTimeValue(0.0, 0.8);
-	Obj2_Scale.AddTimeValue(2.0, 1.2);
-	Obj2_Scale.AddTimeValue(4.0, 0.6);
-	Obj2_Scale.AddTimeValue(6.0, 1.4);
-	Obj2_Scale.AddTimeValue(8.0, 1.0);
-	Obj2_Scale.AddTimeValue(10.0, 0.8);
+	Obj2_Scale.AddTimeValue(0.0, 1.0);
+	Obj2_Scale.AddTimeValue(10.0, 2.0);
 
 	// Lighting setup
 	glEnable(GL_LIGHTING);
@@ -851,26 +812,17 @@ InitGraphics( )
 
 void InitLists()
 {
-    // Only display list creation - NO keytime initialization here
+    // Display Axes
     AxesList = glGenLists(1);
     glNewList(AxesList, GL_COMPILE);
         Axes(1.5);
     glEndList();
 
-    BoxList = glGenLists(1);
-    glNewList(BoxList, GL_COMPILE);
-        // Empty
-    glEndList();
+	// Load the .obj files
+	SpaceshipObj= LoadObjMtlFiles((char *)"./obj/spaceship.obj"); // Load spaceship
 
-    DL1 = glGenLists(1);
-    glNewList(DL1, GL_COMPILE);
-        OsuSphere(1.0, 32, 32);
-    glEndList();
+	
 
-    DL2 = glGenLists(1);
-    glNewList(DL2, GL_COMPILE);
-        glutSolidTeapot(1.0);
-    glEndList();
 }
 
 
