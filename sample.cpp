@@ -471,6 +471,7 @@ Display( )
 		glCallList( AxesList );
 		glEnable(GL_LIGHTING);
 	}
+
 	// === Spaceship Animations with Keytimes ===
 	float t = nowTime;
 
@@ -480,6 +481,16 @@ Display( )
 	float ship1Scale = Obj1_Scale.GetValue(t);  // Scale animation
 
 	glPushMatrix();
+		// Set spaceship 1 color Red
+		GLfloat matAmbient1[]  = { 0.4f, 0.1f, 0.1f, 1.0f };
+		GLfloat matDiffuse1[]  = { 1.0f, 0.2f, 0.2f, 1.0f };
+		GLfloat matSpecular1[] = { 0.8f, 0.3f, 0.3f, 1.0f };
+		GLfloat matShininess1  = 64.0f;
+		glMaterialfv(GL_FRONT, GL_AMBIENT, matAmbient1);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiffuse1);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, matSpecular1);
+		glMaterialf(GL_FRONT, GL_SHININESS, matShininess1);
+
 		glTranslatef(ship1Tx, 0.0f, 2.0f);          // Move left and right
 		glRotatef(ship1RotY, 0.f, 1.f, 0.f);        // Spin around Y
 		glScalef(ship1Scale * 0.01f, ship1Scale * 0.01f, ship1Scale * 0.01f);
@@ -492,18 +503,28 @@ Display( )
 	float ship2Scale = Obj2_Scale.GetValue(t);  // Scale animation
 
 	glPushMatrix();
+		// Set spaceship 2 color Blue
+		GLfloat matAmbient2[]  = { 0.1f, 0.1f, 0.5f, 1.0f };
+		GLfloat matDiffuse2[]  = { 0.2f, 0.2f, 1.0f, 1.0f };
+		GLfloat matSpecular2[] = { 0.4f, 0.4f, 1.0f, 1.0f };
+		GLfloat matShininess2  = 64.0f;
+		glMaterialfv(GL_FRONT, GL_AMBIENT, matAmbient2);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, matDiffuse2);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, matSpecular2);
+		glMaterialf(GL_FRONT, GL_SHININESS, matShininess2);
+
 		glTranslatef(2.0f, 0.0f, ship2Tz - 2.0f);          // Move forward/backward
 		glRotatef(ship2RotX, 1.f, 0.f, 0.f);        // Spin around X
 		glScalef(ship2Scale * 0.01f, ship2Scale * 0.01f, ship2Scale * 0.01f);
 		glCallList(SpaceshipObj);
 	glPopMatrix();
 
-		// swap the double-buffered framebuffers:
-		glutSwapBuffers( );
+	// swap the double-buffered framebuffers:
+	glutSwapBuffers( );
 
-		// be sure the graphics buffer has been sent:
-		// note: be sure to use glFlush( ) here, not glFinish( ) !
-		glFlush( );
+	// be sure the graphics buffer has been sent:
+	// note: be sure to use glFlush( ) here, not glFinish( ) !
+	glFlush( );
 }
 
 void
@@ -761,12 +782,12 @@ InitGraphics( )
 	Obj1_RotY.AddTimeValue(10.0, 1800.0);
 
 	Obj1_Scale.Init();
-	Obj1_Scale.AddTimeValue(0.0, 0.3);
-	Obj1_Scale.AddTimeValue(2.0, 1.5);
-	Obj1_Scale.AddTimeValue(4.0, 2.5);
+	Obj1_Scale.AddTimeValue(0.0, 0.8);
+	Obj1_Scale.AddTimeValue(2.0, 1.0);
+	Obj1_Scale.AddTimeValue(4.0, 1.5);
 	Obj1_Scale.AddTimeValue(6.0, 0.8);
-	Obj1_Scale.AddTimeValue(8.0, 3.0);
-	Obj1_Scale.AddTimeValue(10.0, 0.3);
+	Obj1_Scale.AddTimeValue(8.0, 1.0);
+	Obj1_Scale.AddTimeValue(10.0, 0.9);
 
 	// Object 2 animations (translate Z, rotate X, scale)
 	Obj2_Tz.Init();
@@ -779,11 +800,19 @@ InitGraphics( )
 
 	Obj2_RotX.Init();
 	Obj2_RotX.AddTimeValue(0.0, 0.0);
+	Obj2_RotX.AddTimeValue(2.0, 180.0);
+	Obj2_RotX.AddTimeValue(4.0, 540.0);	
+	Obj2_RotX.AddTimeValue(6.0, 720.0);
+	Obj2_RotX.AddTimeValue(8.0, 360.0);
 	Obj2_RotX.AddTimeValue(10.0, 1080.0);
 
 	Obj2_Scale.Init();
-	Obj2_Scale.AddTimeValue(0.0, 1.0);
-	Obj2_Scale.AddTimeValue(10.0, 2.0);
+	Obj2_Scale.AddTimeValue(0.0, 1.0); 
+	Obj2_Scale.AddTimeValue(2.0, 0.4); 
+	Obj2_Scale.AddTimeValue(4.0, 0.6);  
+	Obj2_Scale.AddTimeValue(6.0, 0.8);  
+	Obj2_Scale.AddTimeValue(8.0, 1.0);  
+	Obj2_Scale.AddTimeValue(10.0, 2.0); 
 
 	// Lighting setup
 	glEnable(GL_LIGHTING);
@@ -908,6 +937,10 @@ Keyboard( unsigned char c, int x, int y )
 				glutIdleFunc( NULL );
 			else
 				glutIdleFunc( Animate );
+			break;
+		case 'a':
+		case 'A':
+			AxesOn = ! AxesOn;
 			break;
 		case 'o':
 		case 'O':
